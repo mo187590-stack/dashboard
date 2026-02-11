@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body{background:#f6f7fb}
+    .card-kpi{border:0;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+    .kpi-value{font-size:32px;font-weight:700}
+    .kpi-title{color:#6c757d;font-size:14px}
+    .small-muted{color:#6c757d;font-size:12px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+  </style>
+</head>
+
+<body class="p-4">
+  <div class="container">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="m-0">OVERALL STATISTICS</h5>
+      <div class="small-muted">
+        Protocol: <span id="proto" class="mono">--</span> —
+        آخر تحديث: <span id="last_update">--</span>
+      </div>
+    </div>
+
+    <!-- IMPORTANT WARNING (if opened via file://) -->
+    <div id="file_warning" class="alert alert-danger d-none">
+      ❌ الصفحة مفتوحة بطريقة <b>file://</b> وده بيمنع الاتصال (CORS).
+      <br>
+      ✅ افتحيها من VS Code عبر:
+      <b>Ctrl+Shift+P → Live Server: Open with Live Server</b>
+      <br>
+      ولازم الرابط يبقى زي: <span class="mono">http://127.0.0.1:5500</span>
+    </div>
+
+    <!-- API box -->
+    <div class="card card-kpi p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <div class="kpi-title">API URL</div>
+          <div class="mono small-muted" id="api_url_show">--</div>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-primary btn-sm" id="btn_test_api">افتح الـ API</button>
+          <button class="btn btn-primary btn-sm" id="btn_refresh">تحديث</button>
+        </div>
+      </div>
+      <div class="small-muted mt-2" id="api_status">الحالة: --</div>
+      <div class="alert alert-warning mt-2 d-none" id="error_box"></div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="card card-kpi p-3">
+          <div class="kpi-title">نسبة الرفض</div>
+          <div class="kpi-value"><span id="rejection_rate">--</span>%</div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card card-kpi p-3">
+          <div class="kpi-title">إجمالي السجلات</div>
+          <div class="kpi-value" id="total_records">--</div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card card-kpi p-3">
+          <div class="kpi-title">عدد الأصناف</div>
+          <div class="kpi-value" id="total_items">--</div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card card-kpi p-3">
+          <div class="kpi-title">حالة الاتصال</div>
+          <div class="kpi-value" id="conn_badge">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <!-- Alerts -->
+      <div class="col-md-7">
+        <div class="card card-kpi p-3 mb-3" style="background:#ffe9ec">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="kpi-title text-danger">فروع أقل من المتوسط</div>
+              <div class="kpi-value text-danger"><span id="branches_below_avg">--</span> فرع</div>
+            </div>
+            <div class="fs-3">⚠️</div>
+          </div>
+        </div>
+
+        <div class="card card-kpi p-3 mb-3" style="background:#fff3d8">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="kpi-title" style="color:#b7791f">فروع ممتازة</div>
+              <div class="kpi-value" style="color:#b7791f"><span id="branches_excellent">--</span> فرع</div>
+            </div>
+            <div class="fs-3">🏆</div>
+          </div>
+        </div>
+
+        <div class="card card-kpi p-3" style="background:#e9f2ff">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="kpi-title" style="color:#1e40af">فروع تحتاج تحسين</div>
+              <div class="kpi-value" style="color:#1e40af"><span id="branches_need_improve">--</span>%</div>
+            </div>
+            <div class="fs-3">📈</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Donut -->
+      <div class="col-md-5">
+        <div class="card card-kpi p-3">
+          <div class="mb-2 kpi-title">منتهية على أوامر / بدون أوامر</div>
+          <canvas id="donut" height="220"></canvas>
+          <div class="small-muted mt-2">
+            على أوامر: <span id="donut_with_orders">--</span>% —
+            بدون أوامر: <span id="donut_without_orders">--</span>%
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ✅ API URL ثابت (من عندك)
+    const API_URL = "https://script.google.com/macros/s/AKfycbxckLcSypJfuOQ8G368y0fg1ZVcgkLXFmi4iaQkoOzMDCaPxZY-E0F78_Y6aBClHE4C/exec";
+
+    const $ = (id) => document.getElementById(id);
+
+    function showError(msg) {
+      const box = $("error_box");
+      box.classList.remove("d-none");
+      box.textContent = msg;
+    }
+    function hideError() {
+      const box = $("error_box");
+      box.classList.add("d-none");
+      box.textContent = "";
+    }
+
+    function toNumber(x) {
+      const n = Number(String(x ?? "").replace(/,/g, "").trim());
+      return isNaN(n) ? 0 : n;
+    }
+    function fmtInt(x) { return toNumber(x).toLocaleString("en-US"); }
+    function fmtPercent(x, d=2) { return toNumber(x).toFixed(d); }
+
+    let donutChart = null;
+
+    function updateUI(data) {
+      // لو API رجّع error (مثلاً sheet not found)
+      if (data && data.error) {
+        $("conn_badge").textContent = "❌";
+        $("api_status").textContent = "الحالة: API رجّع خطأ";
+        showError(
+          "API Error: " + data.error +
+          (data.available_sheets ? " | Sheets: " + data.available_sheets : "")
+        );
+        return;
+      }
+
+      hideError();
+      $("conn_badge").textContent = "✅";
+      $("api_status").textContent = "الحالة: متصل ويقرأ بيانات Google Sheets";
+
+      $("rejection_rate").textContent = fmtPercent(data.rejection_rate, 2);
+      $("total_records").textContent = fmtInt(data.total_records);
+      $("total_items").textContent = fmtInt(data.total_items);
+
+      $("branches_below_avg").textContent = fmtInt(data.branches_below_avg);
+      $("branches_excellent").textContent = fmtInt(data.branches_excellent);
+      $("branches_need_improve").textContent = fmtPercent(data.branches_need_improve, 0);
+
+      const withOrders = toNumber(data.donut_with_orders || data.rejection_rate);
+      const withoutOrders = toNumber(data.donut_without_orders || (100 - withOrders));
+
+      $("donut_with_orders").textContent = fmtPercent(withOrders, 2);
+      $("donut_without_orders").textContent = fmtPercent(withoutOrders, 2);
+
+      const ctx = $("donut");
+      if (!donutChart) {
+        donutChart = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["منتهية على أوامر", "منتهية بدون أوامر"],
+            datasets: [{ data: [withOrders, withoutOrders], borderWidth: 0 }]
+          },
+          options: { plugins: { legend: { position: "right" } }, cutout: "70%" }
+        });
+      } else {
+        donutChart.data.datasets[0].data = [withOrders, withoutOrders];
+        donutChart.update();
+      }
+
+      $("last_update").textContent = new Date().toLocaleString("ar-EG");
+    }
+
+    async function loadData() {
+      try {
+        // لو الصفحة اتفتحت file:// هنوقف ونوضح السبب
+        $("proto").textContent = window.location.protocol;
+        if (window.location.protocol === "file:") {
+          $("file_warning").classList.remove("d-none");
+          $("conn_badge").textContent = "❌";
+          $("api_status").textContent = "الحالة: الصفحة مفتوحة file:// (لازم Live Server)";
+          return;
+        } else {
+          $("file_warning").classList.add("d-none");
+        }
+
+        const res = await fetch(API_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+
+        const data = await res.json();
+        updateUI(data);
+      } catch (err) {
+        $("conn_badge").textContent = "❌";
+        $("api_status").textContent = "الحالة: فشل الاتصال";
+        showError(
+          "مشكلة اتصال: " + err.message +
+          " | تأكدي إن النشر Access = Anyone، والـ API يفتح ويعرض JSON."
+        );
+      }
+    }
+
+    // UI buttons
+    $("api_url_show").textContent = API_URL;
+    $("btn_test_api").addEventListener("click", () => window.open(API_URL, "_blank"));
+    $("btn_refresh").addEventListener("click", loadData);
+
+    // Start + auto refresh
+    loadData();
+    setInterval(loadData, 60000);
+  </script>
+</body>
+</html>
